@@ -1,0 +1,119 @@
+The following is based on my experience in trying to follow the instructions at Docs.Solder.io and ultimately made concise for you. I take no responsibility for any damage or distress you might cause yourself or others while following this document.
+
+1. Make sure you are using a fresh clean installation of Ubuntu 14.04 server 32 or 64 bit version. It will come preinstalled with a LAMP stack which is what we want as a base.
+
+2. Log into your server as root and do the following
+        cd /root
+
+3. First update you apt repository
+        apt-get update
+
+4. The Apache part is garbage for us and we are going to use something else to manage it. So let’s get rid of Apache.
+        apt-get remove --purge apache*
+
+5. Install nano as we are going to need it.
+        apt-get install nano
+
+6. We are going to use Vesta CP a free control panel to setup the web server.
+        wget http://vestacp.com/pub/vst-install.sh
+
+7. Now run it
+        bash vst-install.sh
+
+8. This wil take about 15 minutes, when it is done at the bottom will be an address similar to https://your.domain.com:8083, a user name, and a temporary password.
+We can start by going to the address given, logging in and I suggest changing the password. Change nothing else!
+
+9. Become admin
+        su admin
+
+10. Now goto the following as it is where your Technic Solder will live. Whenever I say hit tab key, that what I want you to do, actually hit it and then keep typing the other stuff.
+        cd ~/web/hit tab key/public_html
+
+11. Next we have to get Composer by using *whenever you use sudo it’ll ask for the current users password.
+        sudo wget https://getcomposer.org/installer
+
+12. Now you have to install composer by doing
+        sudo php installer
+
+13. Now we need to update the composer
+        sudo php composer.phar self-update
+
+14. With that out of the we will use git to get a copy of the official Technic Solder structure and support files.
+        git clone https://github.com/TechnicPack/TechnicSolder.git
+
+15. Now enter the Technic Solder directory
+        cd TechnicSolder
+
+16. This part used to be different and if you follow the Getting Started guide it’ll really mess you up. We need to edit the TechnicSolder config files first. So go to that folder now with
+        cd app
+
+17. The config directory is not yet set up. Thankfully there is an example config directory that we will copy
+        cp -r config-sample config
+
+18. Great job so far! Now do
+        cd config
+
+19. This comes from the initial configuration at the bottom the file at Getting Started, first we need to edit the solder.php file
+        nano solder.php
+
+20. Find the line that has and change it to your actual path of the for facing directory and change mirror_url to the name of your webserver
+        'repo_location' => '/home/admin/web/your.domain.tld/public_html/TechnicSolder/public/',
+
+        /**
+         * Mirror Location
+         *
+         * This is where the launcher will be told to search for your files. If                                                                                                                                                              your
+         * repo location is already a URL you can use the same location here.
+         *
+         **/
+        'mirror_url' => 'http://your.domain.tld/',
+
+21. Now you want to save these changes
+        ctrl+X, Y, enter
+
+22. Next we need to edit app.php
+        nano app.php
+
+23. Find the line that says ‘url’ and change it’s value to the same value you used for ‘mirror_url’ on the previous instruction
+        /*
+        |--------------------------------------------------------------------------
+        | Application URL
+        |--------------------------------------------------------------------------
+        |
+        | This URL is used by the console to properly generate URLs when using
+        | the Artisan command line tool. You should set this to the root of
+        | your application so that it is used when running Artisan tasks.
+        |
+        */
+
+        'url' => 'http://your.domain.tld/TechnicSolder/public',
+
+24. Save it
+        ctrl+X, Y, enter
+
+25. Go back to the TechnicSolder folder
+        cd ../..
+
+26. Finally we get to install TechnicSolder, seriously. Yeah. Run the following twice, it trips out on the first run, so running it again makes everything happy.
+        #run this twice!
+        sudo php ../composer.phar install --no-dev --no-interaction
+
+27. We are not done, but we are very close! This part will set up the tables. Please do both commands in sequence. The first command may kick back with blocks of red hilited words, ignore it and its output if it happens.
+        php artisan migrate::install; php artisan migrate
+
+28. Answer yes when asked
+
+29. We are going to set the owners and permissions, please do both commands.
+        cd ..
+        sudo chown -R admin:admin .
+
+30. Let’s make some symbolic links in the /home/admin folder that will make our lives easier when we next join the server. Where I say hit tab key, hit the tab key
+        cd ~
+        mkdir web/hit tab key/public_html/TechnicSolder/public/mods
+        mkdir web/hit tab key/public_html/TechnicSolder/public/temp
+        ln -s web/hit tab key/public_html/TechnicSolder/public/mods solder
+        ln -s web/hit tab key/public_html/TechnicSolder/public/temp temp
+
+31. Congratulations! You now have Technic Solder installed on your server. Now go to http://your.domain.tld/Technic/public/ in your browser and use the following credentials. Make sure to create a new admin user with a non-admin name and to delete the existing admin account. Then log back in with the new one.
+        user: admin@admin.com
+        pass: admin
