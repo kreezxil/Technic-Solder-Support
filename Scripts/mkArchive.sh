@@ -147,13 +147,13 @@ fi
 MODPATH="${MODSLUG}/${STRUCTURE}"
 mkdir -p "${MODPATH}" # creates the entire directory path as needed; supresses standard errors
 
-cd "${MODPATH}"
+cd "${MODPATH}" || exit $?
 #the mods directory should actually be empty
-rm -f *
+rm -f "*"
 if [ "${LOCATION}" = "TEMP" ]; then
  if [ "${STRUCTURE}" != "" ]; then #root archive if true, leave it in temp
  if [ "${PAT}" = "*" ]; then
- mv ${TEMP}/${PAT} .
+ mv "${TEMP}/${PAT}" .
  else
  if [ -e "${TEMP}/${FILENAM}" ]; then
  mv "${TEMP}/${FILENAM}" .
@@ -169,7 +169,7 @@ else
  wget "${MODLINK}" -O "${FILENAM}"
 fi
 
-cd "${MODS}/${MODSLUG}"
+cd "${MODS}/${MODSLUG}" || exit $?
 
 ZIPFILE="${MODSLUG}-${VERSION}.zip"
 if [ -e "${ZIPFILE}" ]; then
@@ -193,17 +193,17 @@ if [ "${TARGET}" == "*" ]; then
  # and move the completed zipfile to its proper
  # home afterwords
  if [ "${STRUCTURE}" = "" ]; then # root archive
- cd "${TEMP}"
- zip -rm "${ZIPFILE}" *
+ cd "${TEMP}" || exit $?
+ zip -rm "${ZIPFILE}" "*"
  mv "${ZIPFILE}" "${MODS}/${MODSLUG}/"
  else
- zip -rm "${ZIPFILE}" *
+ zip -rm "${ZIPFILE}" "*"
  fi
 else
  zip -rm "${ZIPFILE}" "${TARGET}"
 fi
 
-cd "${MODS}"
+cd "${MODS}" || exit $?
 chown -R "${WWWUSER}:${WWWUSER}" "${MODSLUG}"
 
 clear
