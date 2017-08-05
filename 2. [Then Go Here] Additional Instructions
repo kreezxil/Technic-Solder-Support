@@ -1,0 +1,270 @@
+You've got your Technic Solder Distribution Server configured and accessible. But now you need to easily maintain it. Sadly it doesn't have a proper web interface for this and therefore the maintenance is done from the shell side. These instructions will walk you through that process of getting this maintenance environ up and going along with the help of some scripts I have I designed for this purpose.
+
+1. Log in to your server as admin and go to the mods folder
+        cd solder
+
+2. We are going to create a new file, it is a script, and it will make our lives so much easier than any other Technic maintainer.
+        nano mkArchive.sh
+
+3. Paste all of the following into the editor and then save it.
+
+#!/bin/bash
+
+# Adjust the following variables as necessary
+TEMP="/var/www/html/TechnicSolder/public/temp"
+MODS="/var/www/html/TechnicSolder/public/mods"
+WWWUSER="www-data"
+
+function isYn {
+ if [ ${#1} -gt 1 ]; then
+ echo "I only need one character!"
+ echo "y or n"
+ echo "Exiting ..."
+ echo
+ exit
+ fi
+}
+
+function exitIfNull {
+ if [ "${1}" == "" ]; then
+ echo "Null response detected."
+ echo "Exiting ..."
+ echo
+ exit
+ fi
+}
+
+re='^[0-9]+$'
+if [[ "${1}" -gt 0 ]]; then
+ if ! [[ ${1} =~ $re ]] ; then
+ clear
+ echo "error: first argument is not a valid menu choice" >&2; exit 1
+ echo
+ fi
+fi
+if [[ "${1}" -lt 1 || "${1}" -gt 5 ]]; then
+ echo "Pack Type:"
+ echo
+ echo "1. Standard Mod"
+ echo "2. Lite Mod"
+ echo "3. Config Pack"
+ echo " - You must have uploaded all configs in"
+ echo " the structure required by the mod to"
+ echo " the TEMP path"
+ echo "4. Forge Jar"
+ echo "5. Minecraft Root"
+ echo " - servers.dat, options.txt etc. ..."
+ echo
+ read -rp "CHOICE: " CHOICE
+ if [[ $CHOICE -lt 1 || $CHOICE -gt 5 ]]; then
+ echo "Invalid Choice!"
+ echo "Please choose a number from 1-5"
+ echo "Exiting ..."
+ echo
+ exit
+ fi
+else
+ # we received the menu entry at the command line
+ CHOICE="${1}"
+fi
+case $CHOICE in
+ 1) STRUCTURE="mods"
+ TARGET="mods"
+ ;;
+ 2) STRUCTURE="mods/1.8"
+ TARGET="mods"
+ ;;
+ 3) STRUCTURE="config"
+ TARGET="config"
+ ;;
+ 4) STRUCTURE="bin"
+ TARGET="bin"
+ FILENAM="modpack.jar"
+ ;;
+ 5) STRUCTURE=""
+ TARGET="*"
+ ;;
+esac
+
+if [ "${2}" == "" ]; then
+ # modslug not given at command line, let's get it now
+ read -rp "MODSLUG=" MODSLUG
+ exitIfNull "${MODSLUG}"
+else
+ #THE %/ is what removes the trailing slash
+ MODSLUG="${2%/}"
+fi
+
+if [ "${3}" == "" ]; then
+ read -rp "VERSION=" VERSION
+ exitIfNull "${VERSION}"
+else
+ VERSION="${3}"
+fi
+
+if [ "${4}" == "" ]; then
+ read -rp "Is mod in temp? (y/n) " LOCATION
+ exitIfNull "${LOCATION}"
+ isYn "${LOCATION}"
+ if [ "${LOCATION}" = "n" ]; then
+ read -rp "MODLINK=" MODLINK
+ exitIfNull "${MODLINK}"
+
+ if [ "${FILENAM}" == "" ]; then
+ read -rp "Generate filename? (y/n)" GENFILE
+ exitIfNull "${GENFILE}"
+ isYn "${GENFILE}"
+ if [[ "${GENFILE}" =~ ^(y|Y)$ ]]; then
+ FILENAM="${MODSLUG}-${VERSION}.jar"
+ fi
+ fi
+ else
+ LOCATION="TEMP"
+ read -rp "Is there more than one part in Temp for ${MODSLUG}? (y/n) " CHOICE
+ exitIfNull "${CHOICE}"
+ isYn "${CHOICE}"
+ if [[ "${CHOICE}" =~ ^(y|Y)$ ]]; then
+ PAT="*"
+ fi
+ fi
+else
+ MODLINK="${4}"
+ if [ "${FILENAM}" == "" ]; then
+ if [ "${5}" == "" ]; then
+ # no filename on command line so gen one now
+ # because if we are doing this many options via
+ # cli then why not!?
+ FILENAM="${MODSLUG}-${VERSION}.jar"
+ fi
+ fi
+fi
+
+if [ "${FILENAM}" = "" ]; then
+ if [ "${5}" != "" ]; then
+ FILENAM="${5}"
+ fi
+fi
+
+if [ "${PAT}" == "" ]; then
+ if [ "${FILENAM}" == "" ]; then
+ read -rp "FILENAM=" FILENAM
+ exitIfNull "${FILENAM}"
+ fi
+fi
+
+MODPATH="${MODSLUG}/${STRUCTURE}"
+mkdir -p "${MODPATH}" # creates the entire directory path as needed; supresses standard errors
+
+cd "${MODPATH}"
+#the mods directory should actually be empty
+rm -f *
+if [ "${LOCATION}" = "TEMP" ]; then
+ if [ "${STRUCTURE}" != "" ]; then #root archive if true, leave it in temp
+ if [ "${PAT}" = "*" ]; then
+ mv ${TEMP}/${PAT} .
+ else
+ if [ -e "${TEMP}/${FILENAM}" ]; then
+ mv "${TEMP}/${FILENAM}" .
+ else
+ echo "Error locating ..."
+ echo "${TEMP}/${FILENAM}"
+ echo "Exiting ..."
+ exit
+ fi
+ fi
+ fi
+else
+ wget "${MODLINK}" -O "${FILENAM}"
+fi
+
+cd "${MODS}/${MODSLUG}"
+
+ZIPFILE="${MODSLUG}-${VERSION}.zip"
+if [ -e "${ZIPFILE}" ]; then
+ # prevent multiple copies of a same or similar mod
+ # based on the mod you are zipping for in the event
+ # you are remaking the mod archive with the same
+ # ZIPFILE name
+ clear
+ echo "You are duplicating your efforts, ${ZIPFILE} already exists!!!"
+ echo "I'm not doing this, if you insist on doing this, change the version number!"
+ echo "Conversely you should probably take a break!"
+ exit
+fi
+
+# Zip options:
+# -r recurse into directories
+# -m move file into zipfile
+if [ "${TARGET}" == "*" ]; then
+ # this is a root archive operation
+ # we'll be working from the master temp folder
+ # and move the completed zipfile to its proper
+ # home afterwords
+ if [ "${STRUCTURE}" = "" ]; then # root archive
+ cd "${TEMP}"
+ zip -rm "${ZIPFILE}" *
+ mv "${ZIPFILE}" "${MODS}/${MODSLUG}/"
+ else
+ zip -rm "${ZIPFILE}" *
+ fi
+else
+ zip -rm "${ZIPFILE}" "${TARGET}"
+fi
+
+cd "${MODS}"
+chown -R "${WWWUSER}:${WWWUSER}" "${MODSLUG}"
+
+clear
+echo "Modslug=${MODSLUG}"
+echo "Filename=${FILENAM}"
+echo "Version=${VERSION}"
+if [ "${MODLINK}" != "" ]; then
+ echo "Modlink=${MODLINK}"
+ echo
+ echo "./newMod.sh ${MODLINK} ${FILENAM}"
+ echo
+fi
+
+4. Make it executable
+        chmod a+x mkArchive.sh
+
+5. Make sure you Zip installed
+        #on deb/ubuntu based systems
+        [sudo] apt-get install zip
+
+        #on redhat based systems
+        sudo yum install zip
+
+6. The script can be executed without arguments in which case it’ll prompt for each nitty gritty detail. However, you can execute all of the arguments in a single line in the same order they appear with the menu. A typical invocation might look like
+        ./mkArchive 1 modslug-name "version" downloadlink
+
+        *:quotes only needed if version has spaces
+        **:this is your database, your modslug-name doesn't have to match the case or the name, but it should do so closely or else you'll have a problem when you return to this later
+
+7. Sometimes you get a mod that doesn’t have a link to give the script, instead it is downloaded on your computer, in this case you will ftp to your distribution server as root. Your remote folder will be /root and there is a temp folder shortcut we made earlier, double click that or enter it, and then upload the mod you downloaded to this directory and then you would use the script on the server as
+        ./mkArchive.sh 1 modslug-name "version"
+
+        and at this point it will ask you if the mod is in temp and you will say yes and then it will ask you if there is more than one part and I realized a couple of days ago that is stupid, so whether or not there is more than one file just answer 'Y' and hit enter.
+
+        now copy this version number to the place in the Technic Solder app where it asks for the version number. And hit "add mod", it should be added to your mod database and now you can add it to your modpack.
+
+Let’s talk about the script some more. The first argument which is a number corresponds to the first menu you encounter when you run the script without arguments. These control how the individual things you link in or upload are configured and packaged for distribution to your clients.
+
+  echo "Pack Type:"
+  echo
+  echo "1. Standard Mod"
+  echo "2. Lite Mod"
+  echo "3. Config Pack"
+  echo "   - You must have uploaded all configs in"
+  echo "     the structure required by the mod to"
+  echo "     the TEMP path"
+  echo "4. Forge Jar"
+  echo "5. Minecraft Root"
+  echo "   - servers.dat, options.txt etc. ..."
+  echo
+
+As you can see the number ‘1’ means we are building a standard mod archive. You can see that the script also provides for the other types of files you might want the users of your modpack to have. In the case of a Config Pack you will have to upload the configs to the temp folder. Don’t upload the config folder itself from your Minecraft client but instead a sub-element such as a subfolder or file that is in the config folder. When it asks for a slug I would just go with “my-config” or something along that nature and use the version section for differentiation.
+
+./mkArchive.sh 3 my-config-pack techno-magic-1.8.9-1.2
+
+In this way you can have multiple config packs for the various mod packs and version of your mod packs.
