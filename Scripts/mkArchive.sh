@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Assumption: You have followed the instructions at http://bit.ly/2ub5Vq0
+
 # Adjust the following variables as necessary
 TEMP="/var/www/html/TechnicSolder/public/temp"
 MODS="/var/www/html/TechnicSolder/public/mods"
